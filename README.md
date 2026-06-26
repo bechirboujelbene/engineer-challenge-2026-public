@@ -1,5 +1,8 @@
 # Pulse
 
+This repository is a coding challenge for engineering candidates. It is not intended
+for production use.
+
 Pulse is a small internal customer-feedback inbox for support teams. Sign in, browse
 incoming feedback across email, chat, and app-store channels, open an item to read the
 full message and customer details, resolve or reopen it, and generate a quick AI summary
