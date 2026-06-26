@@ -1,6 +1,7 @@
 import { db } from './db'
 
 db.exec(`
+  DROP TABLE IF EXISTS feedback_notes;
   DROP TABLE IF EXISTS feedback;
   DROP TABLE IF EXISTS customers;
   DROP TABLE IF EXISTS users;
@@ -9,13 +10,16 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    role TEXT NOT NULL
   );
 
   CREATE TABLE customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    email TEXT NOT NULL
+    email TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    health_score INTEGER NOT NULL
   );
 
   CREATE TABLE feedback (
@@ -24,42 +28,56 @@ db.exec(`
     channel TEXT NOT NULL,
     message TEXT NOT NULL,
     status TEXT NOT NULL,
+    priority TEXT NOT NULL,
+    assignee_id INTEGER,
+    due_at TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE feedback_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feedback_id INTEGER NOT NULL,
+    author_id INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    is_private INTEGER NOT NULL,
     created_at TEXT NOT NULL
   );
 `)
 
 const users = [
-  { email: 'alice@pulse.test', password: 'password123', name: 'Alice Martin' },
-  { email: 'ben@pulse.test', password: 'support42', name: 'Ben Carter' },
-  { email: 'chloe@pulse.test', password: 'welcome1', name: 'Chloe Nguyen' },
+  { email: 'alice@pulse.test', password: 'password123', name: 'Alice Martin', role: 'agent' },
+  { email: 'ben@pulse.test', password: 'support42', name: 'Ben Carter', role: 'manager' },
+  { email: 'chloe@pulse.test', password: 'welcome1', name: 'Chloe Nguyen', role: 'agent' },
 ]
 
-const insertUser = db.prepare('INSERT INTO users (email, password, name) VALUES (?, ?, ?)')
+const insertUser = db.prepare('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)')
 for (const u of users) {
-  insertUser.run(u.email, u.password, u.name)
+  insertUser.run(u.email, u.password, u.name, u.role)
 }
 
 const customers = [
-  { name: 'Olivia Bennett', email: 'olivia.bennett@example.com' },
-  { name: 'Marcus Lee', email: 'marcus.lee@example.com' },
-  { name: 'Priya Sharma', email: 'priya.sharma@example.com' },
-  { name: 'James Okafor', email: 'james.okafor@example.com' },
-  { name: 'Sofia Rossi', email: 'sofia.rossi@example.com' },
-  { name: 'Liam Walsh', email: 'liam.walsh@example.com' },
-  { name: 'Hannah Kim', email: 'hannah.kim@example.com' },
-  { name: 'Diego Morales', email: 'diego.morales@example.com' },
-  { name: 'Emma Schmidt', email: 'emma.schmidt@example.com' },
-  { name: 'Noah Andersson', email: 'noah.andersson@example.com' },
-  { name: 'Aisha Khan', email: 'aisha.khan@example.com' },
-  { name: 'Lucas Martin', email: 'lucas.martin@example.com' },
-  { name: 'Mia Nakamura', email: 'mia.nakamura@example.com' },
-  { name: 'Ethan Brooks', email: 'ethan.brooks@example.com' },
-  { name: 'Zoe Dubois', email: 'zoe.dubois@example.com' },
+  { name: 'Olivia Bennett', email: 'olivia.bennett@example.com', plan: 'Enterprise', health_score: 91 },
+  { name: 'Marcus Lee', email: 'marcus.lee@example.com', plan: 'Team', health_score: 67 },
+  { name: 'Priya Sharma', email: 'priya.sharma@example.com', plan: 'Enterprise', health_score: 82 },
+  { name: 'James Okafor', email: 'james.okafor@example.com', plan: 'Starter', health_score: 44 },
+  { name: 'Sofia Rossi', email: 'sofia.rossi@example.com', plan: 'Team', health_score: 73 },
+  { name: 'Liam Walsh', email: 'liam.walsh@example.com', plan: 'Enterprise', health_score: 56 },
+  { name: 'Hannah Kim', email: 'hannah.kim@example.com', plan: 'Starter', health_score: 62 },
+  { name: 'Diego Morales', email: 'diego.morales@example.com', plan: 'Team', health_score: 79 },
+  { name: 'Emma Schmidt', email: 'emma.schmidt@example.com', plan: 'Enterprise', health_score: 88 },
+  { name: 'Noah Andersson', email: 'noah.andersson@example.com', plan: 'Starter', health_score: 39 },
+  { name: 'Aisha Khan', email: 'aisha.khan@example.com', plan: 'Team', health_score: 70 },
+  { name: 'Lucas Martin', email: 'lucas.martin@example.com', plan: 'Enterprise', health_score: 94 },
+  { name: 'Mia Nakamura', email: 'mia.nakamura@example.com', plan: 'Team', health_score: 75 },
+  { name: 'Ethan Brooks', email: 'ethan.brooks@example.com', plan: 'Starter', health_score: 48 },
+  { name: 'Zoe Dubois', email: 'zoe.dubois@example.com', plan: 'Enterprise', health_score: 86 },
 ]
 
-const insertCustomer = db.prepare('INSERT INTO customers (name, email) VALUES (?, ?)')
+const insertCustomer = db.prepare(
+  'INSERT INTO customers (name, email, plan, health_score) VALUES (?, ?, ?, ?)'
+)
 for (const c of customers) {
-  insertCustomer.run(c.name, c.email)
+  insertCustomer.run(c.name, c.email, c.plan, c.health_score)
 }
 
 const messages = [
@@ -93,24 +111,74 @@ const messages = [
   "Loving the new keyboard shortcuts. They've genuinely sped up how I work through my inbox each morning.",
   "The notification badge sometimes shows unread items even after I've read everything. A small but persistent annoyance.",
   'Could we get a weekly summary email of new feedback? It would help managers stay in the loop without logging in.',
+  '=HYPERLINK("https://example.invalid/refund","Please review my duplicate charge")',
+  '<strong>Heads up:</strong> the last agent told me this would be escalated today.',
 ]
 
 const channels = ['email', 'chat', 'app store']
+const priorities = ['low', 'normal', 'high', 'urgent']
 
 const insertFeedback = db.prepare(
-  'INSERT INTO feedback (customer_id, channel, message, status, created_at) VALUES (?, ?, ?, ?, ?)'
+  'INSERT INTO feedback (customer_id, channel, message, status, priority, assignee_id, due_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
 )
 
 const now = Date.now()
 const hour = 60 * 60 * 1000
+const day = 24 * hour
 
 for (let i = 0; i < 80; i++) {
   const customerId = (i % customers.length) + 1
   const channel = channels[i % channels.length]
   const message = messages[i % messages.length]
   const status = i % 10 < 3 ? 'resolved' : 'open'
+  const priority = priorities[i % priorities.length]
+  const assigneeId = (i % users.length) + 1
+  const dueAt = new Date(now + ((i % 9) - 3) * day).toISOString()
   const createdAt = new Date(now - i * 18 * hour - (i % 7) * hour).toISOString()
-  insertFeedback.run(customerId, channel, message, status, createdAt)
+  insertFeedback.run(customerId, channel, message, status, priority, assigneeId, dueAt, createdAt)
 }
 
-console.log(`Seeded ${users.length} users, ${customers.length} customers, and 80 feedback items.`)
+const notes = [
+  {
+    feedback_id: 1,
+    author_id: 2,
+    body: 'VIP account. Please offer a credit if they ask again.',
+    is_private: 1,
+  },
+  {
+    feedback_id: 2,
+    author_id: 1,
+    body: 'Reproduced in Chrome. Export button gets stuck after click.',
+    is_private: 0,
+  },
+  {
+    feedback_id: 5,
+    author_id: 3,
+    body: '<em>Customer sounded frustrated.</em> Follow up before end of day.',
+    is_private: 1,
+  },
+  {
+    feedback_id: 8,
+    author_id: 2,
+    body: 'Billing issue: possible duplicate payment. Do not promise refund amount yet.',
+    is_private: 1,
+  },
+]
+
+const insertNote = db.prepare(
+  'INSERT INTO feedback_notes (feedback_id, author_id, body, is_private, created_at) VALUES (?, ?, ?, ?, ?)'
+)
+for (let i = 0; i < notes.length; i++) {
+  const note = notes[i]
+  insertNote.run(
+    note.feedback_id,
+    note.author_id,
+    note.body,
+    note.is_private,
+    new Date(now - (i + 1) * 3 * hour).toISOString()
+  )
+}
+
+console.log(
+  `Seeded ${users.length} users, ${customers.length} customers, 80 feedback items, and ${notes.length} notes.`
+)

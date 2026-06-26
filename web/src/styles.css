@@ -189,7 +189,7 @@ button {
 
 /* App shell */
 .app {
-  max-width: 1000px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 0 16px 40px;
 }
@@ -247,8 +247,11 @@ button {
 /* Toolbar / filters */
 .toolbar {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
 .filters {
@@ -275,6 +278,63 @@ button {
   background: #ff0000;
   color: #ffff00;
   animation: blink 0.9s steps(1) infinite;
+}
+
+.search {
+  min-width: 260px;
+  flex: 1;
+  padding: 10px;
+  border: 5px inset #00ff00;
+  background: #fff;
+  color: #ff00ff;
+  font-family: inherit;
+  font-weight: bold;
+}
+
+.export-button {
+  border: 5px outset #ff0000;
+  background: #ffff00;
+  color: #0000ff;
+  padding: 10px 14px;
+  font-weight: bold;
+  text-transform: uppercase;
+  transform: rotate(2deg);
+}
+
+.metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.metrics-strip div {
+  background: #000;
+  color: #00ff00;
+  border: 5px ridge #ff00ff;
+  padding: 12px;
+  text-align: center;
+  transform: rotate(-1deg);
+}
+
+.metrics-strip div:nth-child(even) {
+  transform: rotate(2deg);
+  background: #ff00ff;
+  color: #ffff00;
+}
+
+.metrics-strip strong {
+  display: block;
+  font-size: 30px;
+  line-height: 1;
+  text-shadow: 2px 2px 0 #0000ff;
+}
+
+.metrics-strip span {
+  display: block;
+  margin-top: 4px;
+  text-transform: uppercase;
+  font-weight: bold;
 }
 
 /* Table */
@@ -358,6 +418,36 @@ button {
   background: #00aa00;
 }
 
+.priority {
+  display: inline-block;
+  padding: 3px 8px;
+  border: 3px outset #000;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.priority.low {
+  color: #000;
+  background: #99ff99;
+}
+
+.priority.normal {
+  color: #0000cc;
+  background: #00ffff;
+}
+
+.priority.high {
+  color: #000;
+  background: #ffff00;
+}
+
+.priority.urgent {
+  color: #fff;
+  background: #ff0000;
+  animation: blink 0.5s steps(1) infinite;
+}
+
 /* Pager */
 .pager {
   display: flex;
@@ -397,6 +487,13 @@ button {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
+  gap: 18px;
+  align-items: start;
 }
 
 .detail-card {
@@ -472,6 +569,48 @@ button {
   color: #000;
 }
 
+.assignment-panel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  background: #ffcc00;
+  border: 5px dotted #0000ff;
+  padding: 12px;
+}
+
+.assignment-panel label,
+.notes-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #000080;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.assignment-panel select,
+.assignment-panel input,
+.notes-panel textarea {
+  min-width: 0;
+  padding: 8px;
+  border: 4px inset #ff00ff;
+  background: #fff;
+  color: #006600;
+  font-family: inherit;
+  font-weight: bold;
+}
+
+.assignment-panel button,
+.notes-panel button {
+  border: 4px outset #00ffff;
+  background: #ff0000;
+  color: #ffff00;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
 .summary {
   background: #ff00ff;
   border: 6px groove #ffff00;
@@ -488,4 +627,99 @@ button {
   color: #00ff00;
   text-shadow: 2px 2px 0 #000;
   animation: rainbow-text 2s linear infinite;
+}
+
+.side-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mini-panel {
+  background: #00ffff;
+  border: 7px groove #ff0000;
+  box-shadow: 10px 10px 0 #ffff00;
+  padding: 16px;
+  transform: rotate(-1deg);
+}
+
+.mini-panel:nth-child(even) {
+  background: #ffccff;
+  transform: rotate(1deg);
+}
+
+.mini-panel h3,
+.mini-panel h4 {
+  margin: 0 0 10px;
+  color: #ff0000;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 0 #ffff00;
+}
+
+.profile-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 3px dashed #0000ff;
+  padding: 7px 0;
+  font-weight: bold;
+}
+
+.history-list {
+  list-style: square;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.history-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #330033;
+  font-weight: bold;
+}
+
+.notes-panel textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  margin-bottom: 8px;
+}
+
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.note {
+  background: #ffff99;
+  border: 4px dashed #ff00ff;
+  padding: 10px;
+  color: #000;
+}
+
+.note-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #0000cc;
+  font-size: 13px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 900px) {
+  .detail-grid,
+  .assignment-panel,
+  .metrics-strip {
+    grid-template-columns: 1fr;
+  }
 }

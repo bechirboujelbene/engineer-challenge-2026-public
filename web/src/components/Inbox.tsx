@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { fetchInbox, toggleResolve } from '../api'
-import { FeedbackItem } from '../types'
+import { exportFeedbackUrl, fetchInbox, fetchMetrics, toggleResolve } from '../api'
+import { FeedbackItem, Metrics } from '../types'
 import ItemDetail from './ItemDetail'
 
 const PAGE_SIZE = 10
@@ -10,21 +10,27 @@ export default function Inbox({ token }: { token: string }) {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   const load = async () => {
-    const data = await fetchInbox(page, filter, token)
+    const data = await fetchInbox(page, filter, search, token)
     setItems(data.items)
     setTotal(data.total)
   }
 
   useEffect(() => {
     load()
-  }, [page, filter])
+  }, [page, filter, search])
+
+  useEffect(() => {
+    fetchMetrics(token).then(setMetrics)
+  }, [token])
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      const data = await fetchInbox(page, filter, token)
+      const data = await fetchInbox(page, filter, search, token)
       const merged = data.items.map((incoming) => {
         const local = items.find((it) => it.id === incoming.id)
         return local ? { ...incoming, status: local.status } : incoming
@@ -57,6 +63,26 @@ export default function Inbox({ token }: { token: string }) {
 
   return (
     <div className="inbox">
+      {metrics && (
+        <div className="metrics-strip">
+          <div>
+            <strong>{metrics.open}</strong>
+            <span>Open</span>
+          </div>
+          <div>
+            <strong>{metrics.resolved}</strong>
+            <span>Resolved</span>
+          </div>
+          <div>
+            <strong>{metrics.urgent}</strong>
+            <span>Urgent</span>
+          </div>
+          <div>
+            <strong>{metrics.overdue}</strong>
+            <span>Overdue</span>
+          </div>
+        </div>
+      )}
       <div className="toolbar">
         <div className="filters">
           {['all', 'open', 'resolved'].map((f) => (
@@ -72,6 +98,23 @@ export default function Inbox({ token }: { token: string }) {
             </button>
           ))}
         </div>
+        <input
+          className="search"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(1)
+          }}
+          placeholder="Search VIPs, refunds, chaos..."
+        />
+        <button
+          className="export-button"
+          onClick={() => {
+            window.location.href = exportFeedbackUrl(filter, search, token)
+          }}
+        >
+          Export CSV
+        </button>
       </div>
 
       <table className="feedback-table">
@@ -79,9 +122,11 @@ export default function Inbox({ token }: { token: string }) {
           <tr>
             <th>Customer</th>
             <th>Channel</th>
+            <th>Priority</th>
             <th>Message</th>
+            <th>Owner</th>
             <th>Status</th>
-            <th>Date</th>
+            <th>Due</th>
             <th></th>
           </tr>
         </thead>
@@ -92,14 +137,18 @@ export default function Inbox({ token }: { token: string }) {
               <td>
                 <span className="channel">{item.channel}</span>
               </td>
+              <td>
+                <span className={'priority ' + item.priority}>{item.priority}</span>
+              </td>
               <td className="preview">
                 {item.message.slice(0, 70)}
                 {item.message.length > 70 ? '…' : ''}
               </td>
+              <td>{item.assignee_name || 'Nobody'}</td>
               <td>
                 <span className={'badge ' + item.status}>{item.status}</span>
               </td>
-              <td>{new Date(item.created_at).toLocaleDateString()}</td>
+              <td>{item.due_at ? new Date(item.due_at).toLocaleDateString() : 'Someday'}</td>
               <td>
                 <button
                   className="link-button"

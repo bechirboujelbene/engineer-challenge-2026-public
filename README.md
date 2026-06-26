@@ -6,7 +6,8 @@ for production use.
 Pulse is a small internal customer-feedback inbox for support teams. Sign in, browse
 incoming feedback across email, chat, and app-store channels, open an item to read the
 full message and customer details, resolve or reopen it, and generate a quick AI summary
-of any message.
+of any message. The app also includes assignment routing, priority and due-date fields,
+customer profile history, internal notes, a small metrics panel, search, and CSV export.
 
 ## Requirements
 
