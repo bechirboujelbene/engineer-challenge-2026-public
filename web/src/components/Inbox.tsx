@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { exportFeedbackUrl, fetchInbox, fetchMetrics, toggleResolve } from '../api'
+import { useEffect, useState, useRef } from 'react'
+import { downloadExport, fetchInbox, fetchMetrics, toggleResolve } from '../api'
 import { FeedbackItem, Metrics } from '../types'
 import ItemDetail from './ItemDetail'
 
@@ -11,39 +11,83 @@ export default function Inbox({ token }: { token: string }) {
   const [page, setPage] = useState(1)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [resolving, setResolving] = useState<number | null>(null)
+  const latestItems = useRef<FeedbackItem[]>([])
+
+  useEffect(() => {
+    latestItems.current = items
+  }, [items])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [search])
 
   const load = async () => {
-    const data = await fetchInbox(page, filter, search, token)
-    setItems(data.items)
-    setTotal(data.total)
+    setLoading(true)
+    setError('')
+    try {
+      const data = await fetchInbox(page, filter, debouncedSearch, token)
+      setItems(data.items)
+      setTotal(data.total)
+    } catch (err: any) {
+      setError(err.message || 'Failed to load feedback')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     load()
-  }, [page, filter, search])
+  }, [page, filter, debouncedSearch])
 
   useEffect(() => {
-    fetchMetrics(token).then(setMetrics)
+    fetchMetrics(token).then(setMetrics).catch(() => {})
   }, [token])
 
   useEffect(() => {
     const interval = setInterval(async () => {
-      const data = await fetchInbox(page, filter, search, token)
-      const merged = data.items.map((incoming) => {
-        const local = items.find((it) => it.id === incoming.id)
-        return local ? { ...incoming, status: local.status } : incoming
-      })
-      setItems(merged)
+      try {
+        const data = await fetchInbox(page, filter, debouncedSearch, token)
+        const local = latestItems.current
+        const merged = data.items.map((incoming) => {
+          const localItem = local.find((it) => it.id === incoming.id)
+          return localItem ? { ...incoming, status: localItem.status } : incoming
+        })
+        setItems(merged)
+      } catch {}
     }, 45000)
     return () => clearInterval(interval)
-  }, [])
+  }, [page, filter, debouncedSearch, token])
 
   const onResolve = async (item: FeedbackItem) => {
     const nextStatus = item.status === 'open' ? 'resolved' : 'open'
-    setItems(items.map((it) => (it.id === item.id ? { ...it, status: nextStatus } : it)))
-    await toggleResolve(item.id, token)
+    setResolving(item.id)
+    try {
+      setItems(
+        latestItems.current.map((it) =>
+          it.id === item.id ? { ...it, status: nextStatus } : it
+        )
+      )
+      await toggleResolve(item.id, token, nextStatus)
+    } catch (err: any) {
+      setItems(
+        latestItems.current.map((it) =>
+          it.id === item.id ? { ...it, status: item.status } : it
+        )
+      )
+      setError('Failed to update status')
+    } finally {
+      setResolving(null)
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -101,21 +145,22 @@ export default function Inbox({ token }: { token: string }) {
         <input
           className="search"
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(1)
-          }}
-          placeholder="Search VIPs, refunds, chaos..."
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search messages, customers, emails..."
         />
         <button
           className="export-button"
           onClick={() => {
-            window.location.href = exportFeedbackUrl(filter, search, token)
+            downloadExport(filter, debouncedSearch, token).catch((err) => {
+              setError('Export failed: ' + (err.message || 'unknown error'))
+            })
           }}
         >
           Export CSV
         </button>
       </div>
+
+      {error && <div className="error">{error}</div>}
 
       <table className="feedback-table">
         <thead>
@@ -131,37 +176,52 @@ export default function Inbox({ token }: { token: string }) {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="row" onClick={() => setSelectedId(item.id)}>
-              <td>{item.customer_name}</td>
-              <td>
-                <span className="channel">{item.channel}</span>
-              </td>
-              <td>
-                <span className={'priority ' + item.priority}>{item.priority}</span>
-              </td>
-              <td className="preview">
-                {item.message.slice(0, 70)}
-                {item.message.length > 70 ? '…' : ''}
-              </td>
-              <td>{item.assignee_name || 'Nobody'}</td>
-              <td>
-                <span className={'badge ' + item.status}>{item.status}</span>
-              </td>
-              <td>{item.due_at ? new Date(item.due_at).toLocaleDateString() : 'Someday'}</td>
-              <td>
-                <button
-                  className="link-button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onResolve(item)
-                  }}
-                >
-                  {item.status === 'open' ? 'Resolve' : 'Reopen'}
-                </button>
+          {loading ? (
+            <tr>
+              <td colSpan={8} className="muted" style={{ textAlign: 'center', padding: '24px' }}>
+                Loading...
               </td>
             </tr>
-          ))}
+          ) : items.length === 0 ? (
+            <tr>
+              <td colSpan={8} className="muted" style={{ textAlign: 'center', padding: '24px' }}>
+                No feedback items found.
+              </td>
+            </tr>
+          ) : (
+            items.map((item) => (
+              <tr key={item.id} className="row" onClick={() => setSelectedId(item.id)}>
+                <td>{item.customer_name}</td>
+                <td>
+                  <span className="channel">{item.channel}</span>
+                </td>
+                <td>
+                  <span className={'priority ' + item.priority}>{item.priority}</span>
+                </td>
+                <td className="preview">
+                  {item.message.slice(0, 70)}
+                  {item.message.length > 70 ? '...' : ''}
+                </td>
+                <td>{item.assignee_name || 'Unassigned'}</td>
+                <td>
+                  <span className={'badge ' + item.status}>{item.status}</span>
+                </td>
+                <td>{item.due_at ? new Date(item.due_at).toLocaleDateString() : '-'}</td>
+                <td>
+                  <button
+                    className="link-button"
+                    disabled={resolving === item.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onResolve(item)
+                    }}
+                  >
+                    {item.status === 'open' ? 'Resolve' : 'Reopen'}
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
 

@@ -30,14 +30,8 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="marquee">
-        <span className="marquee-text">
-          🚀🔥 WELCOME 2 PULSE™ — THE #1 FEEDBACK INBOX ON THE INFORMATION SUPERHIGHWAY!!! 🔥🚀 ⭐
-          best viewed in Netscape Navigator @ 800×600 ⭐ don't forget to sign our guestbook!!! 👽💾📠✨
-        </span>
-      </div>
       <header className="topbar">
-        <h1>💖 Pulse 💖</h1>
+        <h1>Pulse</h1>
         <div className="topbar-right">
           <span className="topbar-user">{user.name}</span>
           <button className="link-button" onClick={onLogout}>

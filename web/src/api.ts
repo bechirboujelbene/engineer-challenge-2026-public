@@ -1,5 +1,14 @@
-import { API_URL, LLM_API_KEY } from './config'
+import { API_URL } from './config'
 import { CustomerProfile, FeedbackItem, InternalNote, Metrics, User } from './types'
+
+async function apiError(res: Response): Promise<never> {
+  try {
+    const body = await res.json()
+    throw new Error(body.error || `Request failed with ${res.status}`)
+  } catch {
+    throw new Error(`Request failed with ${res.status}`)
+  }
+}
 
 export async function login(
   email: string,
@@ -22,9 +31,11 @@ export async function fetchInbox(
   search: string,
   token: string
 ): Promise<{ items: FeedbackItem[]; total: number; page: number }> {
-  const res = await fetch(`${API_URL}/feedback?page=${page}&status=${status}&q=${search}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
+  const res = await fetch(
+    `${API_URL}/feedback?page=${page}&status=${status}&q=${encodeURIComponent(search)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
@@ -32,14 +43,24 @@ export async function fetchItem(id: number, token: string): Promise<FeedbackItem
   const res = await fetch(`${API_URL}/feedback/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
-export async function toggleResolve(id: number, token: string): Promise<FeedbackItem> {
+export async function toggleResolve(
+  id: number,
+  token: string,
+  targetStatus: string
+): Promise<FeedbackItem> {
   const res = await fetch(`${API_URL}/feedback/${id}/resolve`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status: targetStatus }),
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
@@ -47,6 +68,7 @@ export async function fetchUsers(token: string): Promise<{ users: User[] }> {
   const res = await fetch(`${API_URL}/users`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
@@ -54,17 +76,34 @@ export async function fetchMetrics(token: string): Promise<Metrics> {
   const res = await fetch(`${API_URL}/metrics`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
-export function exportFeedbackUrl(status: string, search: string, token: string) {
-  return `${API_URL}/export.csv?status=${status}&q=${search}&token=${token}`
+export async function downloadExport(status: string, search: string, token: string) {
+  const res = await fetch(
+    `${API_URL}/export.csv?status=${status}&q=${encodeURIComponent(search)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  if (!res.ok) {
+    throw new Error('Export failed')
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'pulse-feedback-export.csv'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 export async function fetchCustomer(id: number, token: string): Promise<CustomerProfile> {
   const res = await fetch(`${API_URL}/customers/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
@@ -81,6 +120,7 @@ export async function updateAssignment(
     },
     body: JSON.stringify(data),
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
@@ -88,6 +128,7 @@ export async function fetchNotes(id: number, token: string): Promise<{ notes: In
   const res = await fetch(`${API_URL}/feedback/${id}/notes`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
@@ -104,6 +145,7 @@ export async function addNote(
     },
     body: JSON.stringify(data),
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }
 
@@ -113,9 +155,9 @@ export async function summarize(id: number, token: string): Promise<{ summary: s
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
-      'x-llm-key': LLM_API_KEY,
     },
     body: JSON.stringify({ id }),
   })
+  if (!res.ok) await apiError(res)
   return res.json()
 }

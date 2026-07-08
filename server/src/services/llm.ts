@@ -4,6 +4,9 @@ export async function summarizeText(prompt: string): Promise<string> {
   }
 
   const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not set')
+  }
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -17,6 +20,15 @@ export async function summarizeText(prompt: string): Promise<string> {
     }),
   })
 
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`LLM API error ${response.status}: ${text}`)
+  }
+
   const data: any = await response.json()
-  return data.choices[0].message.content
+  const content = data?.choices?.[0]?.message?.content
+  if (!content) {
+    throw new Error('LLM returned an unexpected response shape')
+  }
+  return content
 }

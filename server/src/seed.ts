@@ -1,4 +1,5 @@
 import { db } from './db'
+import bcrypt from 'bcryptjs'
 
 db.exec(`
   DROP TABLE IF EXISTS feedback_notes;
@@ -52,7 +53,8 @@ const users = [
 
 const insertUser = db.prepare('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)')
 for (const u of users) {
-  insertUser.run(u.email, u.password, u.name, u.role)
+  const hashed = bcrypt.hashSync(u.password, 10)
+  insertUser.run(u.email, hashed, u.name, u.role)
 }
 
 const customers = [

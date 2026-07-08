@@ -30,28 +30,42 @@ export default function ItemDetail({
   const [dueAt, setDueAt] = useState('')
   const [noteBody, setNoteBody] = useState('')
   const [privateNote, setPrivateNote] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [summarizing, setSummarizing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [addingNote, setAddingNote] = useState(false)
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
+    setError('')
 
     async function load() {
-      const data = await fetchItem(id, token)
-      if (cancelled) return
+      try {
+        const data = await fetchItem(id, token)
+        if (cancelled) return
 
-      setItem(data)
-      setAssigneeId(data.assignee_id ? String(data.assignee_id) : '')
-      setPriority(data.priority)
-      setDueAt(data.due_at ? data.due_at.slice(0, 10) : '')
+        setItem(data)
+        setAssigneeId(data.assignee_id ? String(data.assignee_id) : '')
+        setPriority(data.priority)
+        setDueAt(data.due_at ? data.due_at.slice(0, 10) : '')
 
-      fetchUsers(token).then((userData) => {
-        if (!cancelled) setUsers(userData.users)
-      })
-      fetchCustomer(data.customer_id, token).then((profile) => {
-        if (!cancelled) setCustomer(profile)
-      })
-      fetchNotes(id, token).then((noteData) => {
-        if (!cancelled) setNotes(noteData.notes)
-      })
+        fetchUsers(token).then((userData) => {
+          if (!cancelled) setUsers(userData.users)
+        })
+        fetchCustomer(data.customer_id, token).then((profile) => {
+          if (!cancelled) setCustomer(profile)
+        })
+        fetchNotes(id, token).then((noteData) => {
+          if (!cancelled) setNotes(noteData.notes)
+        })
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || 'Failed to load item')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
 
     load()
@@ -63,44 +77,84 @@ export default function ItemDetail({
 
   const onResolve = async () => {
     if (!item) return
-    const updated = await toggleResolve(item.id, token)
-    setItem({ ...item, status: updated.status })
+    const targetStatus = item.status === 'open' ? 'resolved' : 'open'
+    try {
+      setActionError('')
+      const updated = await toggleResolve(item.id, token, targetStatus)
+      setItem({ ...item, status: updated.status })
+    } catch (err: any) {
+      setActionError('Failed to update status')
+    }
   }
 
   const onSummarize = async () => {
+    setSummarizing(true)
+    setActionError('')
     try {
       const data = await summarize(id, token)
       setSummary(data.summary)
-    } catch (e) {}
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to generate summary')
+    } finally {
+      setSummarizing(false)
+    }
   }
 
   const onSaveAssignment = async () => {
     if (!item) return
-    const updated = await updateAssignment(
-      item.id,
-      {
-        assignee_id: assigneeId ? Number(assigneeId) : null,
-        priority,
-        due_at: dueAt,
-      },
-      token
-    )
-    setItem(updated)
+    setSaving(true)
+    setActionError('')
+    try {
+      const updated = await updateAssignment(
+        item.id,
+        {
+          assignee_id: assigneeId ? Number(assigneeId) : null,
+          priority,
+          due_at: dueAt,
+        },
+        token
+      )
+      setItem(updated)
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to save assignment')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const onAddNote = async () => {
     if (!noteBody.trim()) return
-    const note = await addNote(id, { body: noteBody, is_private: privateNote }, token)
-    setNotes([note, ...notes])
-    setNoteBody('')
+    setAddingNote(true)
+    setActionError('')
+    try {
+      const note = await addNote(id, { body: noteBody, is_private: privateNote }, token)
+      setNotes([note, ...notes])
+      setNoteBody('')
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to add note')
+    } finally {
+      setAddingNote(false)
+    }
   }
 
-  if (!item) {
+  if (loading) {
     return (
       <div className="detail">
         <button className="link-button" onClick={onBack}>
           ← Back to inbox
         </button>
+        <p className="muted">Loading...</p>
+      </div>
+    )
+  }
+
+  if (error || !item) {
+    return (
+      <div className="detail">
+        <button className="link-button" onClick={onBack}>
+          ← Back to inbox
+        </button>
+        <div className="error">{error || 'Item not found'}</div>
       </div>
     )
   }
@@ -124,12 +178,12 @@ export default function ItemDetail({
             <span className={'priority ' + item.priority}>{item.priority}</span>
             <span className="muted">{new Date(item.created_at).toLocaleString()}</span>
           </div>
-          <div className="message" dangerouslySetInnerHTML={{ __html: item.message }} />
+          <div className="message">{item.message}</div>
           <div className="assignment-panel">
             <label>
               Owner
               <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-                <option value="">Nobody</option>
+                <option value="">Unassigned</option>
                 {users.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name} ({user.role})
@@ -151,20 +205,23 @@ export default function ItemDetail({
               Due
               <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
             </label>
-            <button onClick={onSaveAssignment}>Save routing</button>
+            <button onClick={onSaveAssignment} disabled={saving}>
+              {saving ? 'Saving...' : 'Save routing'}
+            </button>
           </div>
           <div className="detail-actions">
             <button onClick={onResolve}>
               {item.status === 'open' ? 'Mark resolved' : 'Reopen'}
             </button>
-            <button className="secondary" onClick={onSummarize}>
-              Summarize
+            <button className="secondary" onClick={onSummarize} disabled={summarizing}>
+              {summarizing ? 'Summarizing...' : 'Summarize'}
             </button>
           </div>
+          {actionError && <div className="error">{actionError}</div>}
           {summary && (
             <div className="summary">
               <h3>Summary</h3>
-              <div dangerouslySetInnerHTML={{ __html: summary }} />
+              <div>{summary}</div>
             </div>
           )}
         </div>
@@ -198,7 +255,7 @@ export default function ItemDetail({
             <textarea
               value={noteBody}
               onChange={(e) => setNoteBody(e.target.value)}
-              placeholder="Paste context, snippets, reminders..."
+              placeholder="Add context, reminders, or follow-up notes..."
             />
             <label className="checkbox-row">
               <input
@@ -208,7 +265,9 @@ export default function ItemDetail({
               />
               Private note
             </label>
-            <button onClick={onAddNote}>Add note</button>
+            <button onClick={onAddNote} disabled={addingNote}>
+              {addingNote ? 'Adding...' : 'Add note'}
+            </button>
             <div className="notes-list">
               {notes.map((note) => (
                 <article key={note.id} className="note">
@@ -216,7 +275,7 @@ export default function ItemDetail({
                     <strong>{note.author_name}</strong>
                     <span>{note.is_private ? 'Private' : 'Shared'}</span>
                   </div>
-                  <div dangerouslySetInnerHTML={{ __html: note.body }} />
+                  <div>{note.body}</div>
                 </article>
               ))}
             </div>

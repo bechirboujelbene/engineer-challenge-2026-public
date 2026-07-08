@@ -22,7 +22,7 @@ export default function Login({ onLogin }: { onLogin: (token: string, user: User
     <div className="login-wrap">
       <form className="login-card" onSubmit={onSubmit}>
         <h1>Pulse</h1>
-        <p className="subtitle">✨🎉 the #1 customer feedback inbox of ALL TIME 🎉✨</p>
+        <p className="subtitle">Customer feedback inbox</p>
         <label>
           Email
           <input
